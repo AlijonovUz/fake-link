@@ -128,7 +128,7 @@ form.addEventListener('submit', async (ev)=>{
       resultWrap.innerHTML='';
       resultWrap.appendChild(createResultBlock(res.data.url));
     } else {
-      showToast(res.error && res.error.message ? res.error.message : 'Unknown error', 'error');
+      showToast(res.error && res.error.errorMsg ? res.error.errorMsg : 'Unknown error', 'error');
     }
   } catch(err){
     showToast('Server/network error', 'error');
