@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fake Link Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap');
+  :root{--neon-1:#00e5ff;--neon-2:#8a5cff;}
+  body{font-family:'Poppins',sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#071023;color:#e6eef8}
+  .vip-card{width:100%;max-width:820px;padding:36px;border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);box-shadow:0 20px 60px rgba(2,6,23,0.7);position:relative}
+  .glass-input{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.015));border:1px solid rgba(255,255,255,0.04);padding:14px;border-radius:12px;color:#e6eef8;outline:none;transition:box-shadow .18s}
+  .glass-input::placeholder{color:rgba(230,238,248,0.45)}
+  .generate-btn{display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border-radius:12px;background:linear-gradient(90deg,var(--neon-1),var(--neon-2));border:none;color:#041025;font-weight:700;cursor:pointer}
+  .generate-btn[disabled]{opacity:.7;cursor:not-allowed}
+  .result-card{display:flex;justify-content:space-between;align-items:center;padding:14px;border-radius:12px;margin-top:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)}
+  .neon-link{color:var(--neon-1);font-weight:700;word-break:break-all;padding:6px 8px;border-radius:10px;text-decoration:none}
+  .neon-pulse{animation:neonPulse 1.2s ease forwards}
+  @keyframes neonPulse{0%{transform:scale(1);opacity:1}50%{transform:scale(1.02);opacity:.98}100%{transform:scale(1);opacity:1}}
+  .copy-btn{padding:8px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+  .toast{position:fixed;right:20px;top:20px;padding:10px 14px;border-radius:10px;background:rgba(0,0,0,0.5);color:#dff8ff;z-index:9999}
+  @media (max-width:640px){.vip-card{padding:20px}}
+</style>
+</head>
+<body>
+  <div class="vip-card" role="region" aria-label="Fake link generator">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h1 style="margin:0;font-size:22px">Fake Link Generator</h1>
+        <p style="margin:6px 0 0;color:rgba(230,238,248,0.7)">Expiry field fixed — enter days and generate.</p>
+      </div>
+      <small style="color:rgba(230,238,248,0.45)">© 2025</small>
+    </div>
+
+    <form id="fakeForm" class="mt-6" autocomplete="off">
+      <div style="display:grid;grid-template-columns:1fr 160px;gap:12px">
+        <input id="originalUrl" class="glass-input" type="url" inputmode="url" placeholder="Enter URL" />
+        <input id="expireDays" class="glass-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Expiry days" />
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:12px">
+        <button id="generateBtn" class="generate-btn" type="submit"><span id="btnText">Generate</span>
+          <svg id="btnSpinner" class="hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10" stroke="rgba(4,16,37,0.25)" stroke-width="3"></circle></svg>
+        </button>
+        <button id="resetBtn" type="button" class="copy-btn">Reset</button>
+      </div>
+
+      <div id="result" aria-live="polite"></div>
+    </form>
+  </div>
+
+<script>
+function showToast(msg, type='info'){
+  const el=document.createElement('div'); el.className='toast'; el.textContent=msg;
+  if(type==='error') el.style.background='rgba(80,20,20,0.75)';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),2600);
+}
+
+const form=document.getElementById('fakeForm');
+const originalUrlEl=document.getElementById('originalUrl');
+const expireDaysEl=document.getElementById('expireDays');
+const generateBtn=document.getElementById('generateBtn');
+const btnText=document.getElementById('btnText');
+const btnSpinner=document.getElementById('btnSpinner');
+const resultWrap=document.getElementById('result');
+const resetBtn=document.getElementById('resetBtn');
+
+resetBtn.addEventListener('click', ()=>{
+  originalUrlEl.value=''; expireDaysEl.value=''; resultWrap.innerHTML='';
+});
+
+function setLoading(on){
+  if(on){ btnText.classList.add('hidden'); btnSpinner.classList.remove('hidden'); generateBtn.disabled=true; }
+  else { btnText.classList.remove('hidden'); btnSpinner.classList.add('hidden'); generateBtn.disabled=false; }
+}
+
+function parseExpiryDays(val){
+  if(val===null||val===undefined) return NaN;
+  const cleaned = (''+val).replace(/[^\d]/g,'');
+  if(cleaned==='') return NaN;
+  const num = Number(cleaned);
+  if(!isFinite(num)) return NaN;
+  return Math.max(0, Math.floor(num));
+}
+
+async function callGenerateApi(originalUrl, expireDays){
+  const resp = await fetch(`/generate/?url=${encodeURIComponent(originalUrl)}&expire_days=${encodeURIComponent(expireDays)}`, { method:'GET', headers:{'Accept':'application/json'} });
+  return resp.json();
+}
+
+function createResultBlock(url){
+  const card = document.createElement('div');
+  card.className='result-card';
+  const left = document.createElement('div'); left.style.flex='1';
+  const a = document.createElement('a'); a.href=url; a.target='_blank'; a.className='neon-link neon-pulse';
+  a.textContent=url;
+  left.appendChild(a);
+  const right = document.createElement('div');
+  const copyBtn = document.createElement('button'); copyBtn.className='copy-btn'; copyBtn.textContent='Copy';
+  copyBtn.addEventListener('click', async ()=>{
+    try{ await navigator.clipboard.writeText(url); showToast('Link copied'); }
+    catch(e){ showToast('Copy failed — please select and copy manually', 'error'); }
+  });
+  right.appendChild(copyBtn);
+  card.appendChild(left); card.appendChild(right);
+  return card;
+}
+
+form.addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  const originalUrl = originalUrlEl.value.trim();
+  const expiryRaw = expireDaysEl.value;
+  const expiry = parseExpiryDays(expiryRaw);
+
+  if(!originalUrl){
+    showToast('Original URL required', 'error'); originalUrlEl.focus(); return;
+  }
+  if(!Number.isFinite(expiry) || expiry < 1){
+    showToast('Expiry days must be a positive integer (e.g. 1)', 'error'); expireDaysEl.focus(); return;
+  }
+
+  setLoading(true);
+  try{
+    const res = await callGenerateApi(originalUrl, expiry);
+    if(res.success){
+      resultWrap.innerHTML='';
+      resultWrap.appendChild(createResultBlock(res.data.url));
+    } else {
+      showToast(res.error && res.error.message ? res.error.message : 'Unknown error', 'error');
+    }
+  } catch(err){
+    showToast('Server/network error', 'error');
+  } finally{
+    setLoading(false);
+  }
+});
+</script>
+</body>
+</html>
